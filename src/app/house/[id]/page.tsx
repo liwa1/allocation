@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { mockHouses, ADMIN_PHONE } from "@/lib/mockData";
+import { getHouseById } from "@/services/houseService";
+import { ADMIN_PHONE, mockHouses } from "@/lib/mockData";
 import ImageCarousel from "@/components/ImageCarousel";
 import {
   Phone,
@@ -20,12 +21,13 @@ export async function generateMetadata({
   params,
 }: HousePageProps): Promise<Metadata> {
   const { id } = await params;
-  const house = mockHouses.find((h) => h._id === id);
+  let house = await getHouseById(id).catch(() => null);
+  if (!house) house = mockHouses.find((h) => h.id === id) || null;
   if (!house) return { title: "House Not Found" };
 
   return {
     title: `${house.title} - Rental House Tunisia Summer | Allocation`,
-    description: `${house.description} Book this ${house.roomsNumber}-room house for ${house.price} TND/night. Rental house tunisia summer.`,
+    description: `${house.description} Book this ${house.rooms_number}-room house for ${house.price} TND/night. Rental house tunisia summer.`,
     keywords: [
       "rental",
       "house",
@@ -39,7 +41,8 @@ export async function generateMetadata({
 
 export default async function HousePage({ params }: HousePageProps) {
   const { id } = await params;
-  const house = mockHouses.find((h) => h._id === id);
+  let house = await getHouseById(id).catch(() => null);
+  if (!house) house = mockHouses.find((h) => h.id === id) || null;
 
   if (!house) {
     notFound();
@@ -98,15 +101,15 @@ export default async function HousePage({ params }: HousePageProps) {
                   </div>
                   <div>
                     <p className="font-semibold text-[#1A2517]">
-                      {house.roomsNumber}
+                      {house.rooms_number}
                     </p>
                     <p className="text-sm text-[#1A2517]/50">
-                      {house.roomsNumber > 1 ? "Bedrooms" : "Bedroom"}
+                      {house.rooms_number > 1 ? "Bedrooms" : "Bedroom"}
                     </p>
                   </div>
                 </div>
 
-                {house.hasLivingRoom && (
+                {house.has_living_room && (
                   <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-[#DDE3EA]">
                     <div className="w-10 h-10 bg-[#ACC8A2]/20 rounded-lg flex items-center justify-center">
                       <Sofa className="w-5 h-5 text-[#ACC8A2]" />
@@ -118,7 +121,7 @@ export default async function HousePage({ params }: HousePageProps) {
                   </div>
                 )}
 
-                {house.hasKitchen && (
+                {house.has_kitchen && (
                   <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-[#DDE3EA]">
                     <div className="w-10 h-10 bg-[#DDE3EA] rounded-lg flex items-center justify-center">
                       <CookingPot className="w-5 h-5 text-[#1A2517]/60" />

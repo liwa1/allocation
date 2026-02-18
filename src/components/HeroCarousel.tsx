@@ -32,7 +32,7 @@ export default function HeroCarousel({ houses }: HeroCarouselProps) {
     <div className="relative h-[70vh] min-h-[500px] overflow-hidden">
       {featured.map((h, i) => (
         <div
-          key={h._id}
+          key={h.id}
           className={`absolute inset-0 transition-opacity duration-1000 ${
             i === current ? "opacity-100" : "opacity-0"
           }`}
@@ -66,7 +66,7 @@ export default function HeroCarousel({ houses }: HeroCarouselProps) {
               <span className="text-sm font-normal text-white/70">/night</span>
             </span>
             <Link
-              href={`/house/${house._id}`}
+              href={`/house/${house.id}`}
               className="bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-6 py-3 rounded-xl font-medium transition-colors"
             >
               View Details

@@ -13,7 +13,7 @@ interface HouseCardProps {
 export default function HouseCard({ house }: HouseCardProps) {
   return (
     <div className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#DDE3EA]">
-      <Link href={`/house/${house._id}`}>
+      <Link href={`/house/${house.id}`}>
         <div className="relative aspect-[4/3] overflow-hidden">
           <Image
             src={house.pictures[0] || "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=80"}
@@ -31,7 +31,7 @@ export default function HouseCard({ house }: HouseCardProps) {
       </Link>
 
       <div className="p-4 space-y-3">
-        <Link href={`/house/${house._id}`}>
+        <Link href={`/house/${house.id}`}>
           <h3 className="font-semibold text-[#1A2517] text-lg truncate hover:text-[#4FC3E7] transition-colors">
             {house.title}
           </h3>
@@ -40,7 +40,7 @@ export default function HouseCard({ house }: HouseCardProps) {
         <div className="flex items-center gap-2 text-[#1A2517]/60">
           <BedDouble className="w-4 h-4" />
           <span className="text-sm">
-            {house.roomsNumber} {house.roomsNumber > 1 ? "rooms" : "room"}
+            {house.rooms_number} {house.rooms_number > 1 ? "rooms" : "room"}
           </span>
         </div>
 

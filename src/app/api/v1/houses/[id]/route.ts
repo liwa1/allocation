@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getHouseById, updateHouse, deleteHouse } from "@/services/houseService";
+import { mockHouses } from "@/lib/mockData";
 
 export async function GET(
   request: Request,
@@ -9,11 +10,17 @@ export async function GET(
     const { id } = await params;
     const house = await getHouseById(id);
     if (!house) {
+      // Try mock data fallback
+      const mock = mockHouses.find((h) => h.id === id);
+      if (mock) return NextResponse.json(mock);
       return NextResponse.json({ error: "House not found" }, { status: 404 });
     }
     return NextResponse.json(house);
   } catch (error) {
     console.error("Error fetching house:", error);
+    const { id } = await params;
+    const mock = mockHouses.find((h) => h.id === id);
+    if (mock) return NextResponse.json(mock);
     return NextResponse.json(
       { error: "Failed to fetch house" },
       { status: 500 }

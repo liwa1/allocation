@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { mockHouses, ADMIN_PHONE } from "@/lib/mockData";
+import { useState, useEffect, useCallback } from "react";
+import { ADMIN_PHONE } from "@/lib/mockData";
 import { IHouse } from "@/models/houseModel";
 import Image from "next/image";
 import {
@@ -13,21 +13,53 @@ import {
   MapPin,
   Phone,
   User,
+  RefreshCw,
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const [houses, setHouses] = useState<IHouse[]>(mockHouses);
+  const [houses, setHouses] = useState<IHouse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHouses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/v1/houses");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setHouses(data);
+      } else if (data?.error) {
+        console.error("API error:", data.error);
+        setError(data.error);
+        setHouses([]);
+      } else {
+        setHouses([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch houses:", err);
+      setError("Failed to connect to the server");
+      setHouses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHouses();
+  }, [fetchHouses]);
   const [showForm, setShowForm] = useState(false);
   const [editingHouse, setEditingHouse] = useState<IHouse | null>(null);
   const [form, setForm] = useState({
     title: "",
-    ownerName: "",
-    ownerNumber: "",
+    owner_name: "",
+    owner_number: "",
     location: "",
     price: "",
-    roomsNumber: "",
-    hasLivingRoom: true,
-    hasKitchen: true,
+    rooms_number: "",
+    has_living_room: true,
+    has_kitchen: true,
     description: "",
     pictures: "",
   });
@@ -35,13 +67,13 @@ export default function DashboardPage() {
   const resetForm = () => {
     setForm({
       title: "",
-      ownerName: "",
-      ownerNumber: "",
+      owner_name: "",
+      owner_number: "",
       location: "",
       price: "",
-      roomsNumber: "",
-      hasLivingRoom: true,
-      hasKitchen: true,
+      rooms_number: "",
+      has_living_room: true,
+      has_kitchen: true,
       description: "",
       pictures: "",
     });
@@ -53,45 +85,62 @@ export default function DashboardPage() {
     setEditingHouse(house);
     setForm({
       title: house.title,
-      ownerName: house.ownerName,
-      ownerNumber: String(house.ownerNumber),
+      owner_name: house.owner_name,
+      owner_number: String(house.owner_number),
       location: house.location,
       price: String(house.price),
-      roomsNumber: String(house.roomsNumber),
-      hasLivingRoom: house.hasLivingRoom,
-      hasKitchen: house.hasKitchen,
+      rooms_number: String(house.rooms_number),
+      has_living_room: house.has_living_room,
+      has_kitchen: house.has_kitchen,
       description: house.description,
       pictures: house.pictures.join(", "),
     });
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this house?")) {
-      setHouses(houses.filter((h) => h._id !== id));
+      try {
+        await fetch(`/api/v1/houses/${id}`, { method: "DELETE" });
+        await fetchHouses();
+      } catch (err) {
+        console.error("Failed to delete house:", err);
+      }
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const houseData: IHouse = {
-      _id: editingHouse?._id || String(Date.now()),
+    const houseData = {
       title: form.title,
-      ownerName: form.ownerName,
-      ownerNumber: Number(form.ownerNumber),
+      owner_name: form.owner_name,
+      owner_number: Number(form.owner_number),
       location: form.location,
       price: Number(form.price),
-      roomsNumber: Number(form.roomsNumber),
-      hasLivingRoom: form.hasLivingRoom,
-      hasKitchen: form.hasKitchen,
+      rooms_number: Number(form.rooms_number),
+      has_living_room: form.has_living_room,
+      has_kitchen: form.has_kitchen,
       description: form.description,
       pictures: form.pictures.split(",").map((p) => p.trim()).filter(Boolean),
     };
 
-    if (editingHouse) {
-      setHouses(houses.map((h) => (h._id === editingHouse._id ? houseData : h)));
-    } else {
-      setHouses([...houses, houseData]);
+    try {
+      if (editingHouse) {
+        await fetch(`/api/v1/houses/${editingHouse.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(houseData),
+        });
+      } else {
+        await fetch("/api/v1/houses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(houseData),
+        });
+      }
+      await fetchHouses();
+    } catch (err) {
+      console.error("Failed to save house:", err);
     }
     resetForm();
   };
@@ -105,16 +154,35 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold text-[#1A2517]">Dashboard</h1>
             <p className="text-[#1A2517]/60 mt-1">Manage your house listings</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="flex items-center gap-2 bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-5 py-2.5 rounded-xl font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add House
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (confirm("Seed database with sample houses? This replaces existing data.")) {
+                  await fetch("/api/v1/seed", { method: "POST" });
+                  await fetchHouses();
+                }
+              }}
+              className="flex items-center gap-2 border border-[#DDE3EA] hover:bg-[#DDE3EA] text-[#1A2517] px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            >
+              Seed Data
+            </button>
+            <button
+              onClick={fetchHouses}
+              className="flex items-center gap-2 border border-[#DDE3EA] hover:bg-[#DDE3EA] text-[#1A2517] p-2.5 rounded-xl transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              className="flex items-center gap-2 bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-5 py-2.5 rounded-xl font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add House
+            </button>
+          </div>
         </div>
 
         {/* Form Modal */}
@@ -153,8 +221,8 @@ export default function DashboardPage() {
                     </label>
                     <input
                       type="text"
-                      value={form.ownerName}
-                      onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
+                      value={form.owner_name}
+                      onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl border border-[#DDE3EA] focus:border-[#4FC3E7] focus:ring-1 focus:ring-[#4FC3E7] outline-none transition-colors"
                       required
                     />
@@ -165,8 +233,8 @@ export default function DashboardPage() {
                     </label>
                     <input
                       type="number"
-                      value={form.ownerNumber}
-                      onChange={(e) => setForm({ ...form, ownerNumber: e.target.value })}
+                      value={form.owner_number}
+                      onChange={(e) => setForm({ ...form, owner_number: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl border border-[#DDE3EA] focus:border-[#4FC3E7] focus:ring-1 focus:ring-[#4FC3E7] outline-none transition-colors"
                       required
                     />
@@ -201,8 +269,8 @@ export default function DashboardPage() {
                     </label>
                     <input
                       type="number"
-                      value={form.roomsNumber}
-                      onChange={(e) => setForm({ ...form, roomsNumber: e.target.value })}
+                      value={form.rooms_number}
+                      onChange={(e) => setForm({ ...form, rooms_number: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-xl border border-[#DDE3EA] focus:border-[#4FC3E7] focus:ring-1 focus:ring-[#4FC3E7] outline-none transition-colors"
                       required
                     />
@@ -238,8 +306,8 @@ export default function DashboardPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={form.hasLivingRoom}
-                      onChange={(e) => setForm({ ...form, hasLivingRoom: e.target.checked })}
+                      checked={form.has_living_room}
+                      onChange={(e) => setForm({ ...form, has_living_room: e.target.checked })}
                       className="w-4 h-4 accent-[#4FC3E7]"
                     />
                     <span className="text-sm text-[#1A2517]">Living Room</span>
@@ -247,8 +315,8 @@ export default function DashboardPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={form.hasKitchen}
-                      onChange={(e) => setForm({ ...form, hasKitchen: e.target.checked })}
+                      checked={form.has_kitchen}
+                      onChange={(e) => setForm({ ...form, has_kitchen: e.target.checked })}
                       className="w-4 h-4 accent-[#4FC3E7]"
                     />
                     <span className="text-sm text-[#1A2517]">Kitchen</span>
@@ -304,7 +372,7 @@ export default function DashboardPage() {
               <tbody>
                 {houses.map((house) => (
                   <tr
-                    key={house._id}
+                    key={house.id}
                     className="border-b border-[#DDE3EA] last:border-b-0 hover:bg-[#F8FAFB] transition-colors"
                   >
                     <td className="px-6 py-4">
@@ -325,10 +393,10 @@ export default function DashboardPage() {
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span className="text-sm text-[#1A2517] flex items-center gap-1">
-                          <User className="w-3 h-3" /> {house.ownerName}
+                          <User className="w-3 h-3" /> {house.owner_name}
                         </span>
                         <span className="text-xs text-[#1A2517]/50 flex items-center gap-1">
-                          <Phone className="w-3 h-3" /> {house.ownerNumber}
+                          <Phone className="w-3 h-3" /> {house.owner_number}
                         </span>
                       </div>
                     </td>
@@ -344,7 +412,7 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-[#1A2517]/70 flex items-center gap-1">
-                        <BedDouble className="w-3 h-3" /> {house.roomsNumber}
+                        <BedDouble className="w-3 h-3" /> {house.rooms_number}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -357,7 +425,7 @@ export default function DashboardPage() {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(house._id!)}
+                          onClick={() => handleDelete(house.id!)}
                           className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500"
                           title="Delete"
                         >
@@ -371,7 +439,30 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {houses.length === 0 && (
+          {loading && (
+            <div className="text-center py-12">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#4FC3E7] mb-2" />
+              <p className="text-[#1A2517]/40">Loading houses...</p>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="text-center py-12">
+              <p className="text-red-500 font-medium mb-2">Error: {error}</p>
+              <p className="text-[#1A2517]/40 text-sm mb-4">Make sure the database is set up. Try seeding data first.</p>
+              <button
+                onClick={async () => {
+                  await fetch("/api/v1/seed", { method: "POST" });
+                  await fetchHouses();
+                }}
+                className="inline-flex items-center gap-2 bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              >
+                Seed Database
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && houses.length === 0 && (
             <div className="text-center py-12">
               <p className="text-[#1A2517]/40">No houses yet. Add your first listing!</p>
             </div>

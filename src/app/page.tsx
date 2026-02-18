@@ -1,10 +1,19 @@
 import HouseCard from "@/components/HouseCard";
 import HeroCarousel from "@/components/HeroCarousel";
+import { getHouses } from "@/services/houseService";
 import { mockHouses } from "@/lib/mockData";
 import { Search } from "lucide-react";
 
-export default function HomePage() {
-  const houses = mockHouses;
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  let houses;
+  try {
+    houses = await getHouses();
+    if (!houses.length) houses = mockHouses;
+  } catch {
+    houses = mockHouses;
+  }
 
   return (
     <main className="min-h-screen">
@@ -43,7 +52,7 @@ export default function HomePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {houses.map((house) => (
-            <HouseCard key={house._id} house={house} />
+            <HouseCard key={house.id} house={house} />
           ))}
         </div>
       </section>
