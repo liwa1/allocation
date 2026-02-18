@@ -30,14 +30,6 @@ function GoogleIcon() {
   );
 }
 
-function FacebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2">
-      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-    </svg>
-  );
-}
-
 function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
@@ -91,12 +83,12 @@ function LoginForm() {
     setLoading(false);
   };
 
-  const handleOAuthLogin = async (provider: "google" | "facebook") => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
 
     const { error: err } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}`,
       },
@@ -130,21 +122,12 @@ function LoginForm() {
           {/* Social Login */}
           <div className="space-y-3">
             <button
-              onClick={() => handleOAuthLogin("google")}
+              onClick={handleGoogleLogin}
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-[#DDE3EA] hover:bg-[#F8FAFB] transition-colors font-medium text-[#1A2517] disabled:opacity-50"
             >
               <GoogleIcon />
               Continue with Google
-            </button>
-
-            <button
-              onClick={() => handleOAuthLogin("facebook")}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-[#DDE3EA] hover:bg-[#F8FAFB] transition-colors font-medium text-[#1A2517] disabled:opacity-50"
-            >
-              <FacebookIcon />
-              Continue with Facebook
             </button>
           </div>
 
