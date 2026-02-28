@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ADMIN_PHONE } from "@/lib/mockData";
 import { IHouse } from "@/models/houseModel";
 import Image from "next/image";
@@ -14,6 +14,8 @@ import {
   Phone,
   User,
   RefreshCw,
+  Upload,
+  ImageIcon,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -51,6 +53,9 @@ export default function DashboardPage() {
   }, [fetchHouses]);
   const [showForm, setShowForm] = useState(false);
   const [editingHouse, setEditingHouse] = useState<IHouse | null>(null);
+  const [uploadedPictures, setUploadedPictures] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     title: "",
     owner_name: "",
@@ -77,12 +82,14 @@ export default function DashboardPage() {
       description: "",
       pictures: "",
     });
+    setUploadedPictures([]);
     setEditingHouse(null);
     setShowForm(false);
   };
 
   const handleEdit = (house: IHouse) => {
     setEditingHouse(house);
+    setUploadedPictures(house.pictures);
     setForm({
       title: house.title,
       owner_name: house.owner_name,
@@ -93,7 +100,7 @@ export default function DashboardPage() {
       has_living_room: house.has_living_room,
       has_kitchen: house.has_kitchen,
       description: house.description,
-      pictures: house.pictures.join(", "),
+      pictures: "",
     });
     setShowForm(true);
   };
@@ -109,8 +116,34 @@ export default function DashboardPage() {
     }
   };
 
+  const handleUpload = async (files: FileList) => {
+    setUploading(true);
+    const fd = new FormData();
+    Array.from(files).forEach((f) => fd.append("files", f));
+    try {
+      const res = await fetch("/api/v1/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.urls) {
+        setUploadedPictures((prev) => [...prev, ...data.urls]);
+      } else {
+        alert("Upload failed: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const extraUrls = form.pictures
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const allPictures = [...uploadedPictures, ...extraUrls];
+
     const houseData = {
       title: form.title,
       owner_name: form.owner_name,
@@ -121,7 +154,7 @@ export default function DashboardPage() {
       has_living_room: form.has_living_room,
       has_kitchen: form.has_kitchen,
       description: form.description,
-      pictures: form.pictures.split(",").map((p) => p.trim()).filter(Boolean),
+      pictures: allPictures,
     };
 
     try {
@@ -291,14 +324,83 @@ export default function DashboardPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-[#1A2517] mb-1">
-                    Pictures (comma-separated URLs)
+                    Photos
                   </label>
+
+                  {/* Upload Zone */}
+                  <div
+                    className="border-2 border-dashed border-[#DDE3EA] rounded-xl p-6 text-center cursor-pointer hover:border-[#4FC3E7] transition-colors mb-3"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files.length > 0)
+                        handleUpload(e.dataTransfer.files);
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0)
+                          handleUpload(e.target.files);
+                      }}
+                    />
+                    {uploading ? (
+                      <div className="flex flex-col items-center gap-2 text-[#4FC3E7]">
+                        <RefreshCw className="w-6 h-6 animate-spin" />
+                        <span className="text-sm">Uploading...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-[#1A2517]/40">
+                        <Upload className="w-6 h-6" />
+                        <span className="text-sm">Click or drag &amp; drop images</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preview Grid */}
+                  {uploadedPictures.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {uploadedPictures.map((url, i) => (
+                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden group">
+                          <Image
+                            src={url}
+                            alt={`Photo ${i + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized={url.includes("supabase")}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setUploadedPictures((prev) =>
+                                prev.filter((_, idx) => idx !== i)
+                              )
+                            }
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* URL fallback */}
+                  <div className="flex items-center gap-2 text-xs text-[#1A2517]/40 mb-1">
+                    <ImageIcon className="w-3 h-3" />
+                    Or add image URLs (comma-separated)
+                  </div>
                   <textarea
                     value={form.pictures}
                     onChange={(e) => setForm({ ...form, pictures: e.target.value })}
                     rows={2}
-                    className="w-full px-4 py-2.5 rounded-xl border border-[#DDE3EA] focus:border-[#4FC3E7] focus:ring-1 focus:ring-[#4FC3E7] outline-none transition-colors resize-none"
-                    placeholder="https://example.com/img1.jpg, https://example.com/img2.jpg"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#DDE3EA] focus:border-[#4FC3E7] focus:ring-1 focus:ring-[#4FC3E7] outline-none transition-colors resize-none text-sm"
+                    placeholder="https://example.com/img1.jpg, ..."
                   />
                 </div>
 
