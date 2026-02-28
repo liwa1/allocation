@@ -1,34 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Home, LayoutDashboard, LogIn, LogOut, User } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { User as SupaUser } from "@supabase/supabase-js";
+import { Home, LayoutDashboard } from "lucide-react";
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  UserButton,
+  useUser,
+} from "@clerk/nextjs";
 
 export default function Navbar() {
-  const [user, setUser] = useState<SupaUser | null>(null);
-  const supabase = createSupabaseBrowserClient();
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    window.location.href = "/";
-  };
-
+  const { user } = useUser();
   const isAdmin =
-    user?.app_metadata?.role === "admin" ||
-    user?.user_metadata?.role === "admin";
+    (user?.publicMetadata as { role?: string } | undefined)?.role === "admin";
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#DDE3EA]">
@@ -44,39 +29,26 @@ export default function Navbar() {
           </Link>
 
           <div className="flex items-center gap-4">
-            {isAdmin && (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 text-sm text-[#1A2517]/70 hover:text-[#1A2517] transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </Link>
-            )}
-
-            {user ? (
-              <div className="flex items-center gap-3">
-                <span className="hidden sm:flex items-center gap-1.5 text-sm text-[#1A2517]/60">
-                  <User className="w-3.5 h-3.5" />
-                  {user.email?.split("@")[0]}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 text-sm text-[#1A2517]/70 hover:text-red-500 transition-colors"
+            <SignedIn>
+              {isAdmin && (
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 text-sm text-[#1A2517]/70 hover:text-[#1A2517] transition-colors"
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Logout</span>
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard
+                </Link>
+              )}
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="flex items-center gap-2 bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+                  Login
                 </button>
-              </div>
-            ) : (
-              <Link
-                href="/login"
-                className="flex items-center gap-2 bg-[#4FC3E7] hover:bg-[#4FC3E7]/90 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              >
-                <LogIn className="w-4 h-4" />
-                Login
-              </Link>
-            )}
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
       </div>

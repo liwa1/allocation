@@ -1,63 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+const isDashboard = createRouteMatcher(["/dashboard(.*)"]);
+const isApi = createRouteMatcher(["/api/v1(.*)"]);
 
-  // ─── 1. Refresh Supabase session on every request ──────────────
-  const { supabase, user, supabaseResponse } = await updateSession(request);
+export const proxy = clerkMiddleware(async (auth, request) => {
+  // ─── /dashboard — must be logged in AND have role=admin ──────
+  if (isDashboard(request)) {
+    const { userId, sessionClaims } = await auth();
 
-  // ─── 2. /dashboard — admin-only ────────────────────────────────
-  if (pathname.startsWith("/dashboard")) {
-    // Not logged in → redirect to login
-    if (!user) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.searchParams.set("redirect", pathname);
+    if (!userId) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect_url", request.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Check admin role from user metadata
-    const role =
-      user.app_metadata?.role ||
-      user.user_metadata?.role ||
-      "user";
+    const role = (
+      sessionClaims?.publicMetadata as { role?: string } | undefined
+    )?.role;
 
     if (role !== "admin") {
-      const deniedUrl = request.nextUrl.clone();
-      deniedUrl.pathname = "/unauthorized";
-      return NextResponse.redirect(deniedUrl);
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
   }
 
-  // ─── 3. /api/v1/* — same-origin only (skip in dev mode) ───────
-  if (pathname.startsWith("/api/v1")) {
+  // ─── /api/v1/* — same-origin only (skipped in dev) ───────────
+  if (isApi(request)) {
     const isDev = process.env.NODE_ENV === "development";
 
     if (!isDev) {
       const origin = request.headers.get("origin");
-      const referer = request.headers.get("referer");
       const host = request.headers.get("host");
 
-      // Allow requests with no origin (server-side fetches, curl, etc.)
-      // but block cross-origin browser requests
       if (origin) {
-        const allowedOrigins = [
+        const allowed = [
           `https://${host}`,
           `http://${host}`,
           process.env.NEXT_PUBLIC_SITE_URL,
         ].filter(Boolean);
 
-        if (!allowedOrigins.includes(origin)) {
-          return NextResponse.json(
-            { error: "Forbidden: cross-origin request" },
-            { status: 403 }
-          );
-        }
-      } else if (referer) {
-        // Check referer as fallback for same-origin validation
-        const refererUrl = new URL(referer);
-        if (refererUrl.host !== host) {
+        if (!allowed.includes(origin)) {
           return NextResponse.json(
             { error: "Forbidden: cross-origin request" },
             { status: 403 }
@@ -66,14 +48,12 @@ export async function proxy(request: NextRequest) {
       }
     }
   }
-
-  return supabaseResponse;
-}
+});
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/api/v1/:path*",
-    "/auth/callback",
+    "/dashboard(.*)",
+    "/api/v1(.*)",
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
   ],
 };
