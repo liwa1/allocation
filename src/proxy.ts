@@ -1,4 +1,4 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isDashboard = createRouteMatcher(["/dashboard(.*)"]);
@@ -7,7 +7,7 @@ const isApi = createRouteMatcher(["/api/v1(.*)"]);
 export const proxy = clerkMiddleware(async (auth, request) => {
   // ─── /dashboard — must be logged in AND have role=admin ──────
   if (isDashboard(request)) {
-    const { userId, sessionClaims } = await auth();
+    const { userId } = await auth();
 
     if (!userId) {
       const loginUrl = new URL("/login", request.url);
@@ -15,9 +15,10 @@ export const proxy = clerkMiddleware(async (auth, request) => {
       return NextResponse.redirect(loginUrl);
     }
 
-    const role = (
-      sessionClaims?.publicMetadata as { role?: string } | undefined
-    )?.role;
+    // Fetch user from Clerk API to get fresh publicMetadata (not cached in JWT)
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    const role = (user.publicMetadata as { role?: string })?.role;
 
     if (role !== "admin") {
       return NextResponse.redirect(new URL("/unauthorized", request.url));
